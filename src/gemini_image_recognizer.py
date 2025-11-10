@@ -5,6 +5,7 @@ Gemini 影像辨識模組
 """
 
 from pathlib import Path
+from typing import Optional
 
 import google.generativeai as genai
 
@@ -23,21 +24,32 @@ class GeminiImageRecognizer:
     MAX_IMAGE_SIZE_MB = 15
     MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024
     
-    def __init__(self, api_key: str, model_name: str = "gemini-1.5-flash"):
+    def __init__(self, api_key: Optional[str] = None, model_name: str = "gemini-1.5-flash"):
         """
         初始化 Gemini 影像辨識器。
         
         Args:
-            api_key (str): Google Gemini API 金鑰
+            api_key (Optional[str]): Google Gemini API 金鑰。
+                若為 None，則使用 gcloud 認證（需先執行 gcloud auth application-default login）
             model_name (str): 使用的模型名稱，預設為 "gemini-1.5-flash"
         
-        Raises:
-            ValueError: 當 api_key 為空字串時
-        """
-        if not api_key:
-            raise ValueError("API key 不可為空")
+        Examples:
+            >>> # 使用 API 金鑰
+            >>> recognizer = GeminiImageRecognizer(api_key="your-api-key")
+            
+            >>> # 使用 gcloud 認證
+            >>> recognizer = GeminiImageRecognizer()
         
-        genai.configure(api_key=api_key)
+        Raises:
+            ValueError: 當 api_key 為空字串時（但允許 None）
+        """
+        if api_key is not None and not api_key:
+            raise ValueError("API key 不可為空字串，請傳入有效的金鑰或 None 以使用 gcloud 認證")
+        
+        # 只有在提供 API key 時才進行配置
+        if api_key is not None:
+            genai.configure(api_key=api_key)
+        
         self.model = genai.GenerativeModel(model_name)
     
     def _validate_image_size(self, image_path: str) -> None:
@@ -75,7 +87,17 @@ class GeminiImageRecognizer:
             str: Gemini API 回傳的辨識結果
         
         Examples:
+            >>> # 使用 API 金鑰
             >>> recognizer = GeminiImageRecognizer(api_key="your-api-key")
+            >>> result = recognizer.recognize(
+            ...     "/path/to/passport.jpg",
+            ...     "請辨識護照號碼"
+            ... )
+            >>> print(result)
+            'A123456789'
+            
+            >>> # 使用 gcloud 認證
+            >>> recognizer = GeminiImageRecognizer()
             >>> result = recognizer.recognize(
             ...     "/path/to/passport.jpg",
             ...     "請辨識護照號碼"

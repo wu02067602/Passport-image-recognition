@@ -15,7 +15,9 @@
 ## 系統需求
 
 - Python 3.10 或更高版本
-- Google Gemini API 金鑰
+- 下列其中一種認證方式：
+  - **gcloud 認證**（建議）
+  - Google Gemini API 金鑰
 
 ## 安裝
 
@@ -32,7 +34,19 @@ cd <project-directory>
 pip install -r requirements.txt
 ```
 
-3. 設定環境變數：
+3. 設定認證（選擇其中一種方式）：
+
+**方式 1: 使用 gcloud 認證（建議）**
+
+```bash
+# 安裝 Google Cloud SDK
+# 參考: https://cloud.google.com/sdk/docs/install
+
+# 設定應用程式預設認證
+gcloud auth application-default login
+```
+
+**方式 2: 使用 API 金鑰**
 
 ```bash
 export GEMINI_API_KEY="your-api-key-here"
@@ -40,13 +54,33 @@ export GEMINI_API_KEY="your-api-key-here"
 
 ## 快速開始
 
-### 基本使用
+### 使用 gcloud 認證（建議）
 
 ```python
 from src.gemini_image_recognizer import GeminiImageRecognizer
 from src.passport_recognition_controller import PassportRecognitionController
 
-# 建立辨識器
+# 建立辨識器（使用 gcloud 認證）
+recognizer = GeminiImageRecognizer()
+
+# 建立控制器
+controller = PassportRecognitionController(recognizer=recognizer)
+
+# 辨識護照圖片
+result = controller.recognize_passport("/path/to/passport.jpg")
+
+print(f"護照號碼: {result.passport_number}")
+print(f"信心度: {result.confidence}")
+print(f"是否找到: {result.is_found()}")
+```
+
+### 使用 API 金鑰
+
+```python
+from src.gemini_image_recognizer import GeminiImageRecognizer
+from src.passport_recognition_controller import PassportRecognitionController
+
+# 建立辨識器（使用 API 金鑰）
 recognizer = GeminiImageRecognizer(api_key="your-api-key")
 
 # 建立控制器
@@ -183,12 +217,46 @@ result = controller.recognize_passport(
 - [序列圖](序列圖.md) - 展示系統的執行流程
 - [元件圖](元件圖.md) - 展示系統的元件架構
 
+## 認證方式說明
+
+本系統支援兩種認證方式：
+
+### 1. gcloud 認證（建議）
+
+使用 Google Cloud SDK 的應用程式預設認證，適合在開發環境和生產環境中使用。
+
+**優點：**
+- 無需管理 API 金鑰
+- 更安全的認證機制
+- 符合企業級安全標準
+- 自動處理認證過期和更新
+
+**設定方式：**
+```bash
+gcloud auth application-default login
+```
+
+**程式碼使用：**
+```python
+recognizer = GeminiImageRecognizer()  # 不需要傳入 api_key
+```
+
+### 2. API 金鑰
+
+直接使用 API 金鑰進行認證，適合快速測試和簡單應用。
+
+**使用方式：**
+```python
+recognizer = GeminiImageRecognizer(api_key="your-api-key")
+```
+
 ## 注意事項
 
 1. 圖片大小限制為 15MB
 2. 支援的圖片格式：JPEG
-3. 需要有效的 Google Gemini API 金鑰
-4. 建議使用 gemini-1.5-flash 模型以獲得最佳效能
+3. 使用 gcloud 認證時，需先執行 `gcloud auth application-default login`
+4. 使用 API 金鑰時，請妥善保管金鑰，不要提交到版本控制系統
+5. 建議使用 gemini-1.5-flash 模型以獲得最佳效能
 
 ## 授權
 
