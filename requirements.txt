@@ -1,0 +1,10 @@
+# Google Generative AI SDK for Gemini API
+google-generativeai>=0.3.0
+
+# Python standard library (以下為說明，不需安裝)
+# base64 - 內建
+# json - 內建
+# re - 內建
+# pathlib - 內建
+# typing - 內建
+# dataclasses - 內建 (Python 3.7+)
