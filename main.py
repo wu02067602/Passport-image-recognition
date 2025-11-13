@@ -20,11 +20,11 @@ class PassportBatchProcessor:
     並將結果輸出為 CSV 檔案。
     """
     
-    def __init__(self, model_name: str = "gemini-1.5-flash"):
+    def __init__(self, model_name: str = "gemini-2.5-flash"):
         """初始化批次處理器
         
         Args:
-            model_name (str): 使用的模型名稱，預設為 'gemini-1.5-flash'
+            model_name (str): 使用的模型名稱，預設為 'gemini-2.5-flash'
         
         Examples:
             >>> processor = PassportBatchProcessor()
@@ -246,8 +246,8 @@ def main():
     parser.add_argument(
         '-m', '--model',
         type=str,
-        default='gemini-1.5-flash',
-        help='使用的模型名稱（預設: gemini-1.5-flash）'
+        default='gemini-2.5-flash',
+        help='使用的模型名稱（預設: gemini-2.5-flash）'
     )
     
     args = parser.parse_args()
