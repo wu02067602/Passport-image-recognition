@@ -8,6 +8,7 @@ from google.genai import types
 from pathlib import Path
 from typing import Union, Optional
 from PIL import Image
+from io import BytesIO
 
 from .prompt_templates import PassportField, PromptTemplates
 
@@ -17,6 +18,9 @@ class VisionAnalyzer:
     
     使用 Google Gemini API 對護照圖片進行文字辨識與理解。
     """
+    
+    # 支援的圖片格式與對應的 MIME 類型
+    MIME_TYPE_MAP = {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp"}
     
     def __init__(self, model_name: str = "gemini-1.5-flash"):
         """初始化圖像理解分析器
@@ -43,6 +47,32 @@ class VisionAnalyzer:
             self.model_name = model_name
         except (ValueError, TypeError) as e:
             raise RuntimeError(f"初始化 Gemini 模型失敗，請確認已執行 gcloud auth application-default login: {str(e)}") from e
+    
+    def _get_image_mime_type(self, img_bytes: bytes) -> str:
+        """從圖片位元組資料中偵測 MIME 類型
+        
+        Args:
+            img_bytes (bytes): 圖片的位元組資料
+        
+        Returns:
+            str: 圖片的 MIME 類型（例如：'image/jpeg'）
+        
+        Examples:
+            >>> analyzer = VisionAnalyzer()
+            >>> with open("test.jpg", "rb") as f:
+            ...     img_bytes = f.read()
+            >>> mime_type = analyzer._get_image_mime_type(img_bytes)
+            >>> mime_type in ['image/jpeg', 'image/png', 'image/webp']
+            True
+        
+        Raises:
+            ValueError: 當無法辨識圖片格式時
+        """
+        try:
+            with Image.open(BytesIO(img_bytes)) as image:
+                return self.MIME_TYPE_MAP.get(image.format, "image/jpeg")
+        except OSError as e:
+            raise ValueError(f"無法辨識圖片格式") from e
     
     def analyze_field(
         self,
@@ -76,23 +106,21 @@ class VisionAnalyzer:
         if not image_path.exists():
             raise FileNotFoundError(f"圖片檔案不存在: {image_path}")
         
-        try:
-            image = Image.open(image_path)
-        except FileNotFoundError as e:
-            raise FileNotFoundError(f"圖片檔案不存在: {image_path}") from e
-        except OSError as e:
-            raise ValueError(f"無法開啟圖片檔案: {image_path}") from e
-        
         prompt = custom_prompt if custom_prompt else PromptTemplates.get_prompt(field)
         
         try:
-            # 建立文字與影像的 Part（新版 SDK 需以 bytes + mime_type 建立影像 Part）
-            prompt_part = types.Part.from_text(text=prompt)
-
-            mime_map = {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp"}
-            mime_type = mime_map.get(image.format, "image/jpeg")
+            # 一次性讀取圖片檔案內容
             with open(image_path, "rb") as f:
                 img_bytes = f.read()
+            
+            # 偵測圖片格式
+            try:
+                mime_type = self._get_image_mime_type(img_bytes)
+            except ValueError:
+                raise ValueError(f"無法開啟圖片檔案: {image_path}")
+            
+            # 建立文字與影像的 Part（新版 SDK 需以 bytes + mime_type 建立影像 Part）
+            prompt_part = types.Part.from_text(text=prompt)
             image_part = types.Part.from_bytes(data=img_bytes, mime_type=mime_type)
 
             response = self.client.models.generate_content(
