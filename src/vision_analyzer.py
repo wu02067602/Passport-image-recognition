@@ -3,7 +3,8 @@
 此模組提供使用 Google Gemini API 進行圖像理解的功能。
 """
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from pathlib import Path
 from typing import Union, Optional
 from PIL import Image
@@ -38,7 +39,7 @@ class VisionAnalyzer:
             raise ValueError("模型名稱不可為空")
         
         try:
-            self.model = genai.GenerativeModel(model_name)
+            self.client = genai.Client(vertexai=True)
             self.model_name = model_name
         except (ValueError, TypeError) as e:
             raise RuntimeError(f"初始化 Gemini 模型失敗，請確認已執行 gcloud auth application-default login: {str(e)}") from e
@@ -85,7 +86,12 @@ class VisionAnalyzer:
         prompt = custom_prompt if custom_prompt else PromptTemplates.get_prompt(field)
         
         try:
-            response = self.model.generate_content([prompt, image])
+            # 將 PIL Image 轉換為 genai types.Part
+            image_part = types.Part.from_image(image)
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[prompt, image_part]
+            )
             return response.text
         except (ValueError, TypeError) as e:
             raise RuntimeError(f"Gemini API 呼叫參數錯誤: {str(e)}") from e
