@@ -17,28 +17,31 @@ class VisionAnalyzer:
     使用 Google Gemini API 對護照圖片進行文字辨識與理解。
     """
     
-    def __init__(self, api_key: str, model_name: str = "gemini-1.5-flash"):
+    def __init__(self, model_name: str = "gemini-1.5-flash"):
         """初始化圖像理解分析器
         
+        使用 gcloud 進行身份驗證，會自動使用 gcloud auth application-default login 的憑證。
+        
         Args:
-            api_key (str): Google Gemini API 金鑰
             model_name (str): 使用的模型名稱，預設為 'gemini-1.5-flash'
         
         Examples:
-            >>> analyzer = VisionAnalyzer(api_key="your_api_key")
+            >>> analyzer = VisionAnalyzer()
             >>> isinstance(analyzer, VisionAnalyzer)
             True
         
         Raises:
-            ValueError: 當 API 金鑰為空時
+            ValueError: 當模型名稱為空時
+            RuntimeError: 當 gcloud 認證失敗時
         """
-        if not api_key:
-            raise ValueError("API 金鑰不可為空")
+        if not model_name:
+            raise ValueError("模型名稱不可為空")
         
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(model_name)
-        self.api_key = api_key
-        self.model_name = model_name
+        try:
+            self.model = genai.GenerativeModel(model_name)
+            self.model_name = model_name
+        except (ValueError, TypeError) as e:
+            raise RuntimeError(f"初始化 Gemini 模型失敗，請確認已執行 gcloud auth application-default login: {str(e)}") from e
     
     def analyze_field(
         self,
@@ -57,7 +60,7 @@ class VisionAnalyzer:
             str: LLM 返回的 JSON 字串結果
         
         Examples:
-            >>> analyzer = VisionAnalyzer(api_key="your_api_key")
+            >>> analyzer = VisionAnalyzer()
             >>> result = analyzer.analyze_field("passport.jpg", PassportField.CHINESE_NAME)
             >>> isinstance(result, str)
             True
@@ -104,7 +107,7 @@ class VisionAnalyzer:
             dict[PassportField, str]: 每個欄位對應的 LLM 回應結果
         
         Examples:
-            >>> analyzer = VisionAnalyzer(api_key="your_api_key")
+            >>> analyzer = VisionAnalyzer()
             >>> results = analyzer.analyze_all_fields("passport.jpg")
             >>> isinstance(results, dict)
             True
