@@ -86,11 +86,18 @@ class VisionAnalyzer:
         prompt = custom_prompt if custom_prompt else PromptTemplates.get_prompt(field)
         
         try:
-            # 將 PIL Image 轉換為 genai types.Part
-            image_part = types.Part.from_image(image)
+            # 建立文字與影像的 Part（新版 SDK 需以 bytes + mime_type 建立影像 Part）
+            prompt_part = types.Part.from_text(text=prompt)
+
+            mime_map = {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp"}
+            mime_type = mime_map.get(image.format, "image/jpeg")
+            with open(image_path, "rb") as f:
+                img_bytes = f.read()
+            image_part = types.Part.from_bytes(data=img_bytes, mime_type=mime_type)
+
             response = self.client.models.generate_content(
                 model=self.model_name,
-                contents=[prompt, image_part]
+                contents=[prompt_part, image_part]
             )
             return response.text
         except (ValueError, TypeError) as e:
