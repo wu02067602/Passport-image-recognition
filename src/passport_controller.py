@@ -19,13 +19,13 @@ class PassportController:
     提供完整的護照辨識流程。
     """
     
-    def __init__(self, model_name: str = "gemini-1.5-flash"):
+    def __init__(self, model_name: str = "gemini-2.5-flash"):
         """初始化護照辨識控制器
         
         使用 gcloud 進行身份驗證，會自動使用 gcloud auth application-default login 的憑證。
         
         Args:
-            model_name (str): 使用的模型名稱，預設為 'gemini-1.5-flash'
+            model_name (str): 使用的模型名稱，預設為 'gemini-2.5-flash'
         
         Examples:
             >>> controller = PassportController()
