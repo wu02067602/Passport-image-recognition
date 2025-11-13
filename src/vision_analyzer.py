@@ -19,16 +19,13 @@ class VisionAnalyzer:
     使用 Google Gemini API 對護照圖片進行文字辨識與理解。
     """
     
-    # 支援的圖片格式與對應的 MIME 類型
-    MIME_TYPE_MAP = {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp"}
-    
-    def __init__(self, model_name: str = "gemini-1.5-flash"):
+    def __init__(self, model_name: str = "gemini-2.5-flash"):
         """初始化圖像理解分析器
         
         使用 gcloud 進行身份驗證，會自動使用 gcloud auth application-default login 的憑證。
         
         Args:
-            model_name (str): 使用的模型名稱，預設為 'gemini-1.5-flash'
+            model_name (str): 使用的模型名稱，預設為 'gemini-2.5-flash'
         
         Examples:
             >>> analyzer = VisionAnalyzer()
