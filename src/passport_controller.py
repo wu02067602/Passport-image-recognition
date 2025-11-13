@@ -19,23 +19,25 @@ class PassportController:
     提供完整的護照辨識流程。
     """
     
-    def __init__(self, api_key: str, model_name: str = "gemini-1.5-flash"):
+    def __init__(self, model_name: str = "gemini-1.5-flash"):
         """初始化護照辨識控制器
         
+        使用 gcloud 進行身份驗證，會自動使用 gcloud auth application-default login 的憑證。
+        
         Args:
-            api_key (str): Google Gemini API 金鑰
             model_name (str): 使用的模型名稱，預設為 'gemini-1.5-flash'
         
         Examples:
-            >>> controller = PassportController(api_key="your_api_key")
+            >>> controller = PassportController()
             >>> isinstance(controller, PassportController)
             True
         
         Raises:
-            ValueError: 當 API 金鑰為空時
+            ValueError: 當模型名稱為空時
+            RuntimeError: 當 gcloud 認證失敗時
         """
         self.image_encoder = ImageEncoder()
-        self.vision_analyzer = VisionAnalyzer(api_key=api_key, model_name=model_name)
+        self.vision_analyzer = VisionAnalyzer(model_name=model_name)
         self.result_parser = ResultParser()
     
     def recognize_passport(
@@ -64,7 +66,7 @@ class PassportController:
                 - 護照效期 (str, format: YYYY-MM-DD)
         
         Examples:
-            >>> controller = PassportController(api_key="your_api_key")
+            >>> controller = PassportController()
             >>> result = controller.recognize_passport("passport.jpg")
             >>> isinstance(result, dict)
             True
@@ -109,7 +111,7 @@ class PassportController:
             Any: 該欄位的值，若無法辨識則返回 None
         
         Examples:
-            >>> controller = PassportController(api_key="your_api_key")
+            >>> controller = PassportController()
             >>> name = controller.recognize_single_field("passport.jpg", PassportField.CHINESE_NAME)
             >>> isinstance(name, (str, type(None)))
             True
@@ -147,7 +149,7 @@ class PassportController:
             set[str]: 支援的圖片格式集合（例如: {'.jpg', '.jpeg', '.png'}）
         
         Examples:
-            >>> controller = PassportController(api_key="your_api_key")
+            >>> controller = PassportController()
             >>> formats = controller.get_supported_formats()
             >>> '.jpg' in formats
             True

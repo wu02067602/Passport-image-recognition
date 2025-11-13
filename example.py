@@ -7,10 +7,13 @@ from src import PassportController, PassportField
 
 
 def main():
-    """主程式範例"""
-    # 1. 初始化控制器（需要提供 Gemini API 金鑰）
-    api_key = "YOUR_GEMINI_API_KEY"  # 請替換為您的 API 金鑰
-    controller = PassportController(api_key=api_key)
+    """主程式範例
+    
+    使用前請先執行以下指令進行 gcloud 認證：
+    $ gcloud auth application-default login
+    """
+    # 1. 初始化控制器（使用 gcloud 認證）
+    controller = PassportController()
     
     # 2. 辨識整本護照的所有資訊
     passport_image_path = "path/to/passport.jpg"
