@@ -100,11 +100,16 @@ def recognize_passport() -> tuple[dict[str, Any], int]:
             'success': False,
             'error': f'辨識服務錯誤: {str(e)}'
         }), 500
-    except Exception as e:
+    except (IOError, OSError) as e:
         return jsonify({
             'success': False,
-            'error': f'未預期的錯誤: {str(e)}'
+            'error': f'檔案處理錯誤: {str(e)}'
         }), 500
+    except ConnectionError as e:
+        return jsonify({
+            'success': False,
+            'error': f'網路連線錯誤: {str(e)}'
+        }), 503
 
 
 @app.route('/health', methods=['GET'])
