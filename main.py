@@ -1,16 +1,19 @@
 """護照批次辨識主程式
 
-此程式可以批次處理指定目錄下的所有護照圖片，
-並將辨識結果輸出為 CSV 檔案。
+此程式透過 BASE64 API 批次處理護照圖片並輸出 CSV。
 """
 
-import csv
-import argparse
-from pathlib import Path
-from typing import Union, Any
-from datetime import datetime
+from __future__ import annotations
 
-from src import PassportController
+import argparse
+import base64
+import csv
+from pathlib import Path
+from typing import Any, Final, Union
+
+from src import PassportService
+
+SUPPORTED_FORMATS: Final[set[str]] = {'.jpg', '.jpeg', '.png', '.webp'}
 
 
 class PassportBatchProcessor:
@@ -35,8 +38,8 @@ class PassportBatchProcessor:
             ValueError: 當模型名稱為空時
             RuntimeError: 當 gcloud 認證失敗時
         """
-        self.controller = PassportController(model_name=model_name)
-        self.supported_formats = self.controller.get_supported_formats()
+        self.service = PassportService(model_name=model_name)
+        self.supported_formats = set(SUPPORTED_FORMATS)
     
     def scan_directory(self, directory_path: Union[str, Path]) -> list[Path]:
         """掃描目錄下所有支援的圖片檔案
@@ -73,7 +76,7 @@ class PassportBatchProcessor:
         return sorted(image_files)
     
     def process_single_image(self, image_path: Path) -> dict[str, Any]:
-        """處理單一圖片檔案
+        """處理單一圖片檔案，並透過 BASE64 API 完成辨識
         
         Args:
             image_path (Path): 圖片檔案路徑
@@ -91,7 +94,8 @@ class PassportBatchProcessor:
         
         Raises:
             FileNotFoundError: 當圖片檔案不存在時
-            ValueError: 當圖片格式不支援或無法開啟時
+            ValueError: 當圖片格式不支援時
+            IOError: 當讀取圖片檔案失敗時
             RuntimeError: 當 API 呼叫失敗時
         """
         result = {
@@ -102,13 +106,24 @@ class PassportBatchProcessor:
         }
         
         try:
-            passport_data = self.controller.recognize_passport(image_path)
+            if image_path.suffix.lower() not in self.supported_formats:
+                supported = ', '.join(sorted(self.supported_formats))
+                raise ValueError(f"不支援的圖片格式: {image_path.suffix}，支援: {supported}")
+            
+            try:
+                image_bytes = image_path.read_bytes()
+            except FileNotFoundError:
+                raise
+            except OSError as exc:
+                raise IOError(f"讀取圖片檔案失敗: {image_path}") from exc
+            
+            base64_image = base64.b64encode(image_bytes).decode('utf-8')
+            passport_data = self.service.recognize_from_base64(base64_image)
             
             # 提取所有欄位資料
             result["中文名稱"] = passport_data.get("中文名稱", "")
             result["英文名稱"] = passport_data.get("英文名稱", "")
             
-            # 處理國籍資料（可能是字典）
             nationality = passport_data.get("國籍", {})
             if isinstance(nationality, dict):
                 result["國籍名稱"] = nationality.get("name", "")
@@ -128,6 +143,9 @@ class PassportBatchProcessor:
         except ValueError as e:
             result["辨識狀態"] = "失敗"
             result["錯誤訊息"] = f"圖片格式錯誤: {str(e)}"
+        except IOError as e:
+            result["辨識狀態"] = "失敗"
+            result["錯誤訊息"] = f"讀取檔案失敗: {str(e)}"
         except RuntimeError as e:
             result["辨識狀態"] = "失敗"
             result["錯誤訊息"] = f"API 呼叫失敗: {str(e)}"
