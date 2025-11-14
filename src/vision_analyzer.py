@@ -113,14 +113,14 @@ class VisionAnalyzer:
         """
         prompt = custom_prompt if custom_prompt else PromptTemplates.get_prompt(field)
         
+        # 偵測圖片格式（驗證錯誤應直接向上傳播，不應被 API 錯誤處理器捕捉）
         try:
-            # 偵測圖片格式
-            try:
-                mime_type = self._get_image_mime_type(img_bytes)
-            except ValueError as e:
-                raise ValueError(f"無法辨識圖片格式") from e
-            
-            # 建立文字與影像的 Part
+            mime_type = self._get_image_mime_type(img_bytes)
+        except ValueError as e:
+            raise ValueError(f"無法辨識圖片格式") from e
+        
+        # 建立文字與影像的 Part（這些操作可能產生 API 參數錯誤）
+        try:
             prompt_part = types.Part.from_text(text=prompt)
             image_part = types.Part.from_bytes(data=img_bytes, mime_type=mime_type)
 
