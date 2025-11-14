@@ -19,6 +19,12 @@ class VisionAnalyzer:
     使用 Google Gemini API 對護照圖片進行文字辨識與理解。
     """
     
+    MIME_TYPE_MAP = {
+        'JPEG': 'image/jpeg',
+        'PNG': 'image/png',
+        'WEBP': 'image/webp'
+    }
+    
     def __init__(self, model_name: str = "gemini-2.5-flash"):
         """初始化圖像理解分析器
         
@@ -63,13 +69,70 @@ class VisionAnalyzer:
             True
         
         Raises:
-            ValueError: 當無法辨識圖片格式時
+            ValueError: 當無法辨識圖片格式或格式不支援時
         """
         try:
             with Image.open(BytesIO(img_bytes)) as image:
-                return self.MIME_TYPE_MAP.get(image.format, "image/jpeg")
+                if image.format not in self.MIME_TYPE_MAP:
+                    supported_formats = ', '.join(self.MIME_TYPE_MAP.keys())
+                    raise ValueError(
+                        f"不支援的圖片格式: {image.format}。"
+                        f"支援的格式: {supported_formats}"
+                    )
+                return self.MIME_TYPE_MAP[image.format]
         except OSError as e:
             raise ValueError(f"無法辨識圖片格式") from e
+    
+    def analyze_field_from_bytes(
+        self,
+        img_bytes: bytes,
+        field: PassportField,
+        custom_prompt: Optional[str] = None
+    ) -> str:
+        """從圖片位元組資料分析護照圖片中的特定欄位
+        
+        Args:
+            img_bytes (bytes): 護照圖片的位元組資料
+            field (PassportField): 要分析的護照欄位
+            custom_prompt (Optional[str]): 自訂提示詞，若未提供則使用預設模板
+        
+        Returns:
+            str: LLM 返回的 JSON 字串結果
+        
+        Examples:
+            >>> analyzer = VisionAnalyzer()
+            >>> with open("passport.jpg", "rb") as f:
+            ...     img_bytes = f.read()
+            >>> result = analyzer.analyze_field_from_bytes(img_bytes, PassportField.CHINESE_NAME)
+            >>> isinstance(result, str)
+            True
+        
+        Raises:
+            ValueError: 當圖片無法開啟或格式不支援時
+            RuntimeError: 當 API 呼叫失敗時
+        """
+        prompt = custom_prompt if custom_prompt else PromptTemplates.get_prompt(field)
+        
+        # 偵測圖片格式（驗證錯誤應直接向上傳播，不應被 API 錯誤處理器捕捉）
+        try:
+            mime_type = self._get_image_mime_type(img_bytes)
+        except ValueError as e:
+            raise ValueError(f"無法辨識圖片格式") from e
+        
+        # 建立文字與影像的 Part（這些操作可能產生 API 參數錯誤）
+        try:
+            prompt_part = types.Part.from_text(text=prompt)
+            image_part = types.Part.from_bytes(data=img_bytes, mime_type=mime_type)
+
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[prompt_part, image_part]
+            )
+            return response.text
+        except (ValueError, TypeError) as e:
+            raise RuntimeError(f"Gemini API 呼叫參數錯誤: {str(e)}") from e
+        except ConnectionError as e:
+            raise RuntimeError(f"Gemini API 連線失敗: {str(e)}") from e
     
     def analyze_field(
         self,
@@ -103,32 +166,51 @@ class VisionAnalyzer:
         if not image_path.exists():
             raise FileNotFoundError(f"圖片檔案不存在: {image_path}")
         
-        prompt = custom_prompt if custom_prompt else PromptTemplates.get_prompt(field)
-        
         try:
             # 一次性讀取圖片檔案內容
             with open(image_path, "rb") as f:
                 img_bytes = f.read()
             
-            # 偵測圖片格式
-            try:
-                mime_type = self._get_image_mime_type(img_bytes)
-            except ValueError:
-                raise ValueError(f"無法開啟圖片檔案: {image_path}")
-            
-            # 建立文字與影像的 Part（新版 SDK 需以 bytes + mime_type 建立影像 Part）
-            prompt_part = types.Part.from_text(text=prompt)
-            image_part = types.Part.from_bytes(data=img_bytes, mime_type=mime_type)
-
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=[prompt_part, image_part]
-            )
-            return response.text
-        except (ValueError, TypeError) as e:
-            raise RuntimeError(f"Gemini API 呼叫參數錯誤: {str(e)}") from e
-        except ConnectionError as e:
-            raise RuntimeError(f"Gemini API 連線失敗: {str(e)}") from e
+            return self.analyze_field_from_bytes(img_bytes, field, custom_prompt)
+        except ValueError as e:
+            raise ValueError(f"無法開啟圖片檔案: {image_path}") from e
+    
+    def analyze_all_fields_from_bytes(
+        self,
+        img_bytes: bytes
+    ) -> dict[PassportField, str]:
+        """從圖片位元組資料分析護照圖片中的所有欄位
+        
+        對護照的每個欄位逐一呼叫 LLM 進行分析。
+        
+        Args:
+            img_bytes (bytes): 護照圖片的位元組資料
+        
+        Returns:
+            dict[PassportField, str]: 每個欄位對應的 LLM 回應結果
+        
+        Examples:
+            >>> analyzer = VisionAnalyzer()
+            >>> with open("passport.jpg", "rb") as f:
+            ...     img_bytes = f.read()
+            >>> results = analyzer.analyze_all_fields_from_bytes(img_bytes)
+            >>> isinstance(results, dict)
+            True
+            >>> PassportField.CHINESE_NAME in results
+            True
+        
+        Raises:
+            ValueError: 當圖片無法開啟時
+            RuntimeError: 當任一 API 呼叫失敗時
+        """
+        results = {}
+        all_fields = PromptTemplates.get_all_fields()
+        
+        for field in all_fields:
+            result = self.analyze_field_from_bytes(img_bytes, field)
+            results[field] = result
+        
+        return results
     
     def analyze_all_fields(
         self,
