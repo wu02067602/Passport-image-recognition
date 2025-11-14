@@ -108,16 +108,13 @@ class VisionAnalyzer:
             True
         
         Raises:
-            ValueError: 當圖片無法開啟或格式不支援時
+            ValueError: 當圖片格式不支援或無法辨識時
             RuntimeError: 當 API 呼叫失敗時
         """
         prompt = custom_prompt if custom_prompt else PromptTemplates.get_prompt(field)
         
         # 偵測圖片格式（驗證錯誤應直接向上傳播，不應被 API 錯誤處理器捕捉）
-        try:
-            mime_type = self._get_image_mime_type(img_bytes)
-        except ValueError as e:
-            raise ValueError(f"無法辨識圖片格式") from e
+        mime_type = self._get_image_mime_type(img_bytes)
         
         # 建立文字與影像的 Part（這些操作可能產生 API 參數錯誤）
         try:
@@ -158,7 +155,7 @@ class VisionAnalyzer:
         
         Raises:
             FileNotFoundError: 當圖片檔案不存在時
-            ValueError: 當圖片無法開啟時
+            ValueError: 當圖片格式不支援或無法辨識時
             RuntimeError: 當 API 呼叫失敗時
         """
         image_path = Path(image_path)
@@ -166,14 +163,12 @@ class VisionAnalyzer:
         if not image_path.exists():
             raise FileNotFoundError(f"圖片檔案不存在: {image_path}")
         
-        try:
-            # 一次性讀取圖片檔案內容
-            with open(image_path, "rb") as f:
-                img_bytes = f.read()
-            
-            return self.analyze_field_from_bytes(img_bytes, field, custom_prompt)
-        except ValueError as e:
-            raise ValueError(f"無法開啟圖片檔案: {image_path}") from e
+        # 一次性讀取圖片檔案內容
+        # 格式驗證錯誤會從 analyze_field_from_bytes() 直接傳播，保留原始錯誤訊息
+        with open(image_path, "rb") as f:
+            img_bytes = f.read()
+        
+        return self.analyze_field_from_bytes(img_bytes, field, custom_prompt)
     
     def analyze_all_fields_from_bytes(
         self,
@@ -200,7 +195,7 @@ class VisionAnalyzer:
             True
         
         Raises:
-            ValueError: 當圖片無法開啟時
+            ValueError: 當圖片格式不支援或無法辨識時
             RuntimeError: 當任一 API 呼叫失敗時
         """
         results = {}
@@ -236,7 +231,7 @@ class VisionAnalyzer:
         
         Raises:
             FileNotFoundError: 當圖片檔案不存在時
-            ValueError: 當圖片無法開啟時
+            ValueError: 當圖片格式不支援或無法辨識時
             RuntimeError: 當任一 API 呼叫失敗時
         """
         results = {}
