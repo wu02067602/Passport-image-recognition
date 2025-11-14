@@ -69,11 +69,17 @@ class VisionAnalyzer:
             True
         
         Raises:
-            ValueError: 當無法辨識圖片格式時
+            ValueError: 當無法辨識圖片格式或格式不支援時
         """
         try:
             with Image.open(BytesIO(img_bytes)) as image:
-                return self.MIME_TYPE_MAP.get(image.format, "image/jpeg")
+                if image.format not in self.MIME_TYPE_MAP:
+                    supported_formats = ', '.join(self.MIME_TYPE_MAP.keys())
+                    raise ValueError(
+                        f"不支援的圖片格式: {image.format}。"
+                        f"支援的格式: {supported_formats}"
+                    )
+                return self.MIME_TYPE_MAP[image.format]
         except OSError as e:
             raise ValueError(f"無法辨識圖片格式") from e
     
