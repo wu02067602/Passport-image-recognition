@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# 測試和臨時文件
+test.py
+*.log
+*.tmp
+
+# 文檔（保留 README.md）
+元件圖.md
+序列圖.md
+類別圖.md
+
+# 已刪除的文件
+example.py
+main.py
+
+# 系統文件
+.DS_Store
+Thumbs.db
+
+
