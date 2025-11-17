@@ -5,7 +5,7 @@
 
 import json
 import re
-from typing import Optional, Any
+from typing import Any
 from .prompt_templates import PassportField
 
 
@@ -149,42 +149,3 @@ class ResultParser:
         
         return passport_data
     
-    def extract_value(self, parsed_response: dict[str, Any]) -> Optional[Any]:
-        """從解析後的回應中提取 value 欄位
-        
-        Args:
-            parsed_response (dict[str, Any]): 已解析的 JSON 回應
-        
-        Returns:
-            Optional[Any]: 提取的值，若無值則返回 None
-        
-        Examples:
-            >>> parser = ResultParser()
-            >>> response = {"value": "張三", "confidence": 0.95}
-            >>> parser.extract_value(response)
-            '張三'
-        
-        Raises:
-            此方法不會拋出錯誤
-        """
-        return parsed_response.get('value')
-    
-    def get_confidence(self, parsed_response: dict[str, Any]) -> float:
-        """從解析後的回應中取得信心度
-        
-        Args:
-            parsed_response (dict[str, Any]): 已解析的 JSON 回應
-        
-        Returns:
-            float: 信心度值 (0~1)，若無信心度資訊則返回 0.0
-        
-        Examples:
-            >>> parser = ResultParser()
-            >>> response = {"value": "張三", "confidence": 0.95}
-            >>> parser.get_confidence(response)
-            0.95
-        
-        Raises:
-            此方法不會拋出錯誤
-        """
-        return parsed_response.get('confidence', 0.0)

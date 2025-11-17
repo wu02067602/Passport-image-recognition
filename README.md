@@ -18,20 +18,20 @@
 
 ```
 /workspace
-├── src/                        # 主要程式碼
-│   ├── __init__.py            # 套件初始化
-│   ├── image_encoder.py       # 圖片編碼器
-│   ├── vision_analyzer.py     # 圖像分析器
-│   ├── result_parser.py       # 結果解析器
-│   ├── prompt_templates.py    # 提示詞模板
-│   └── passport_controller.py # 主控制器
-├── example.py                  # 使用範例
-├── requirements.txt            # 專案依賴
-├── .gitignore                 # Git 忽略檔案
-├── README.md                   # 專案說明
-├── 類別圖.md                  # 系統類別圖
-├── 序列圖.md                  # 系統序列圖
-└── 元件圖.md                  # 系統元件圖
+├── app.py                    # Flask API 入口
+├── example.py                # BASE64 使用範例
+├── main.py                   # 批次處理工具
+├── requirements.txt          # 專案依賴
+├── src/                      # 主要程式碼
+│   ├── __init__.py           # 套件初始化
+│   ├── passport_service.py   # BASE64 服務層
+│   ├── vision_analyzer.py    # 圖像分析器
+│   ├── result_parser.py      # 結果解析器
+│   └── prompt_templates.py   # 提示詞模板
+├── README.md                 # 專案說明
+├── 類別圖.md                # 系統類別圖
+├── 序列圖.md                # 系統序列圖
+└── 元件圖.md                # 系統元件圖
 ```
 
 ## 安裝
@@ -49,41 +49,42 @@ pip install -r requirements.txt
 
 ## 使用方式
 
-### 1. 完整護照辨識
+### 1. 透過 PassportService 進行辨識
 
 ```python
-from src import PassportController
+from pathlib import Path
+import base64
 
-# 初始化控制器
-controller = PassportController(api_key="YOUR_GEMINI_API_KEY")
+from src import PassportService
 
-# 辨識整本護照
-result = controller.recognize_passport("path/to/passport.jpg")
+service = PassportService()
+image_path = Path("path/to/passport.jpg")
 
-print(f"中文名稱: {result['中文名稱']}")
-print(f"英文名稱: {result['英文名稱']}")
-print(f"護照號碼: {result['護照號碼']}")
-# ... 其他欄位
+image_bytes = image_path.read_bytes()
+base64_image = base64.b64encode(image_bytes).decode("utf-8")
+
+result = service.recognize_from_base64(base64_image)
+print(f"中文名稱: {result.get('中文名稱')}")
+print(f"護照號碼: {result.get('護照號碼')}")
 ```
 
-### 2. 單一欄位辨識
+> 提醒：範例中會先將檔案轉成 BASE64，再傳入服務層。更完整的示範請參考 `example.py`。
 
-```python
-from src import PassportController, PassportField
+### 2. 呼叫 Flask API
 
-controller = PassportController(api_key="YOUR_GEMINI_API_KEY")
-
-# 只辨識中文名稱
-chinese_name = controller.recognize_single_field(
-    "path/to/passport.jpg",
-    PassportField.CHINESE_NAME
-)
-print(f"中文名稱: {chinese_name}")
+```bash
+curl -X POST http://localhost:5000/api/passport/recognize \
+  -H "Content-Type: application/json" \
+  -d '{"image": "BASE64_STRING"}'
 ```
 
-### 3. 詳細使用範例
+### 3. 使用批次處理工具
 
-請參考 `example.py` 檔案以獲得完整的使用範例。
+```bash
+python main.py --input ./passports --output ./results.csv
+```
+
+批次處理器會掃描目錄、將圖片轉為 BASE64 並呼叫 `PassportService`，最後寫入 CSV 檔案。
 
 ## 系統設計
 
@@ -97,11 +98,11 @@ print(f"中文名稱: {chinese_name}")
 
 ### 核心模組
 
-1. **PassportController**: 主控制器，協調所有模組
-2. **ImageEncoder**: 處理圖片編碼和格式驗證
-3. **VisionAnalyzer**: 呼叫 Gemini API 進行圖像理解
-4. **ResultParser**: 解析 LLM 回應並結構化資料
-5. **PromptTemplates**: 管理提示詞模板
+1. **PassportService**：處理 BASE64 圖片、呼叫 VisionAnalyzer，並整合 ResultParser
+2. **PassportBatchProcessor**：掃描資料夾、轉換檔案為 BASE64、批次呼叫 PassportService
+3. **VisionAnalyzer**：對每個欄位發送提示詞並呼叫 Gemini API 取得結果
+4. **ResultParser**：解析 LLM JSON 回應並產出結構化資料
+5. **PromptTemplates**：集中管理各欄位的提示詞模板
 
 詳細的系統設計請參考：
 - [類別圖](./類別圖.md)
@@ -112,10 +113,10 @@ print(f"中文名稱: {chinese_name}")
 
 本專案採用明確的錯誤處理機制：
 
-- `FileNotFoundError`: 圖片檔案不存在
-- `ValueError`: 圖片格式不支援或無法開啟
-- `RuntimeError`: Gemini API 呼叫失敗
-- `ParseError`: LLM 回應解析失敗
+- `ValueError`：BASE64 字串解碼失敗、圖片格式不支援或無法辨識
+- `RuntimeError`：呼叫 Gemini API 過程中發生錯誤
+- `ParseError`：LLM 回應無法解析為合法 JSON
+- `FileNotFoundError` / `IOError`：批次處理或範例程式在讀取本地檔案時發生問題
 
 ## 專案階段
 
@@ -130,7 +131,7 @@ print(f"中文名稱: {chinese_name}")
 ## 注意事項
 
 1. 需要有效的 Google Gemini API 金鑰
-2. 支援的圖片格式：JPG、JPEG、PNG
+2. 支援的圖片格式：JPG、JPEG、PNG、WEBP
 3. 建議使用清晰、完整的護照圖片以獲得最佳辨識效果
 4. API 呼叫會產生費用，請注意使用量
 

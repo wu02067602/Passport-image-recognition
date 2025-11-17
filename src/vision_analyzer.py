@@ -5,8 +5,7 @@
 
 from google import genai
 from google.genai import types
-from pathlib import Path
-from typing import Union, Optional
+from typing import Optional
 from PIL import Image
 from io import BytesIO
 
@@ -131,45 +130,6 @@ class VisionAnalyzer:
         except ConnectionError as e:
             raise RuntimeError(f"Gemini API 連線失敗: {str(e)}") from e
     
-    def analyze_field(
-        self,
-        image_path: Union[str, Path],
-        field: PassportField,
-        custom_prompt: Optional[str] = None
-    ) -> str:
-        """分析護照圖片中的特定欄位
-        
-        Args:
-            image_path (Union[str, Path]): 護照圖片的路徑
-            field (PassportField): 要分析的護照欄位
-            custom_prompt (Optional[str]): 自訂提示詞，若未提供則使用預設模板
-        
-        Returns:
-            str: LLM 返回的 JSON 字串結果
-        
-        Examples:
-            >>> analyzer = VisionAnalyzer()
-            >>> result = analyzer.analyze_field("passport.jpg", PassportField.CHINESE_NAME)
-            >>> isinstance(result, str)
-            True
-        
-        Raises:
-            FileNotFoundError: 當圖片檔案不存在時
-            ValueError: 當圖片格式不支援或無法辨識時
-            RuntimeError: 當 API 呼叫失敗時
-        """
-        image_path = Path(image_path)
-        
-        if not image_path.exists():
-            raise FileNotFoundError(f"圖片檔案不存在: {image_path}")
-        
-        # 一次性讀取圖片檔案內容
-        # 格式驗證錯誤會從 analyze_field_from_bytes() 直接傳播，保留原始錯誤訊息
-        with open(image_path, "rb") as f:
-            img_bytes = f.read()
-        
-        return self.analyze_field_from_bytes(img_bytes, field, custom_prompt)
-    
     def analyze_all_fields_from_bytes(
         self,
         img_bytes: bytes
@@ -203,42 +163,6 @@ class VisionAnalyzer:
         
         for field in all_fields:
             result = self.analyze_field_from_bytes(img_bytes, field)
-            results[field] = result
-        
-        return results
-    
-    def analyze_all_fields(
-        self,
-        image_path: Union[str, Path]
-    ) -> dict[PassportField, str]:
-        """分析護照圖片中的所有欄位
-        
-        對護照的每個欄位逐一呼叫 LLM 進行分析。
-        
-        Args:
-            image_path (Union[str, Path]): 護照圖片的路徑
-        
-        Returns:
-            dict[PassportField, str]: 每個欄位對應的 LLM 回應結果
-        
-        Examples:
-            >>> analyzer = VisionAnalyzer()
-            >>> results = analyzer.analyze_all_fields("passport.jpg")
-            >>> isinstance(results, dict)
-            True
-            >>> PassportField.CHINESE_NAME in results
-            True
-        
-        Raises:
-            FileNotFoundError: 當圖片檔案不存在時
-            ValueError: 當圖片格式不支援或無法辨識時
-            RuntimeError: 當任一 API 呼叫失敗時
-        """
-        results = {}
-        all_fields = PromptTemplates.get_all_fields()
-        
-        for field in all_fields:
-            result = self.analyze_field(image_path, field)
             results[field] = result
         
         return results
