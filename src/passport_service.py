@@ -34,8 +34,10 @@ class PassportService:
         self.vision_analyzer = VisionAnalyzer(model_name=model_name)
         self.result_parser = ResultParser()
     
-    def recognize_from_base64(self, base64_image: str) -> dict[str, Any]:
+    async def recognize_from_base64(self, base64_image: str) -> dict[str, Any]:
         """從 BASE64 編碼的圖片辨識護照資訊
+        
+        使用非同步方式進行辨識，提升執行效率。
         
         Args:
             base64_image (str): BASE64 編碼的圖片字串
@@ -51,10 +53,11 @@ class PassportService:
                 - 護照效期 (str, format: YYYY-MM-DD)
         
         Examples:
+            >>> import asyncio
             >>> service = PassportService()
             >>> with open("passport.jpg", "rb") as f:
             ...     base64_str = base64.b64encode(f.read()).decode('utf-8')
-            >>> result = service.recognize_from_base64(base64_str)
+            >>> result = asyncio.run(service.recognize_from_base64(base64_str))
             >>> isinstance(result, dict)
             True
         
@@ -68,8 +71,8 @@ class PassportService:
         except (ValueError, TypeError) as e:
             raise ValueError(f"BASE64 解碼失敗: {str(e)}") from e
         
-        # 使用 VisionAnalyzer 分析所有欄位
-        raw_results = self.vision_analyzer.analyze_all_fields_from_bytes(img_bytes)
+        # 使用 VisionAnalyzer 分析所有欄位（非同步並發執行）
+        raw_results = await self.vision_analyzer.analyze_all_fields_from_bytes(img_bytes)
         
         # 使用 ResultParser 解析結果
         passport_data = self.result_parser.parse_all_fields(raw_results)

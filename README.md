@@ -19,8 +19,6 @@
 ```
 /workspace
 ├── app.py                    # Flask API 入口
-├── example.py                # BASE64 使用範例
-├── main.py                   # 批次處理工具
 ├── requirements.txt          # 專案依賴
 ├── src/                      # 主要程式碼
 │   ├── __init__.py           # 套件初始化
@@ -38,8 +36,7 @@
 
 ### 環境需求
 
-- Python 3.10 或以上版本
-- Google Gemini API 金鑰
+- Python 3.14 或以上版本
 
 ### 安裝依賴
 
@@ -68,41 +65,207 @@ print(f"中文名稱: {result.get('中文名稱')}")
 print(f"護照號碼: {result.get('護照號碼')}")
 ```
 
-> 提醒：範例中會先將檔案轉成 BASE64，再傳入服務層。更完整的示範請參考 `example.py`。
+> 提醒：範例中會先將檔案轉成 BASE64，再傳入服務層。
 
 ### 2. 呼叫 Flask API
 
+#### 本地端啟用
+
 ```bash
-curl -X POST http://localhost:5000/api/passport/recognize \
+curl -X POST http://localhost:8080/api/passport/recognize \
   -H "Content-Type: application/json" \
   -d '{"image": "BASE64_STRING"}'
 ```
 
-### 3. 使用批次處理工具
+#### 雲端佈署呼叫方式
 
 ```bash
-python main.py --input ./passports --output ./results.csv
+curl -X POST https://sit-passport-recog-data-api.colatour.org/api/passport/recognize \
+  -H "Content-Type: application/json" \
+  -d '{"image": "BASE64_STRING"}'
 ```
 
-批次處理器會掃描目錄、將圖片轉為 BASE64 並呼叫 `PassportService`，最後寫入 CSV 檔案。
+> 請將 `BASE64_STRING` 替換為實際的 BASE64 編碼圖片字串。
+
+
+
+
+## API 文件
+
+### 基礎資訊
+
+- **Base URL (本地端)**: `http://localhost:8080`
+- **Base URL (雲端佈署)**: `https://sit-passport-recog-data-api.colatour.org`
+- **Content-Type**: `application/json`
+- **API 版本**: v1
+
+### 端點列表
+
+#### 1. 護照辨識
+
+辨識護照圖片中的資訊，包括中文名稱、英文名稱、國籍、護照號碼、性別、出生年月日、護照效期等。
+
+**端點**: `POST /api/passport/recognize`
+
+**請求標頭**:
+```
+Content-Type: application/json
+```
+
+**請求參數**:
+
+| 參數名稱 | 類型 | 必填 | 說明 |
+|---------|------|------|------|
+| image | string | 是 | BASE64 編碼的圖片字串（不含 data URI 前綴） |
+
+**請求範例**:
+
+```bash
+curl -X POST http://localhost:8080/api/passport/recognize \
+  -H "Content-Type: application/json" \
+  -d '{
+    "image": "iVBORw0KGgoAAAANSUhEUgAA..."
+  }'
+```
+
+**成功回應** (HTTP 200):
+
+```json
+{
+  "success": true,
+  "data": {
+    "中文名稱": "張三",
+    "英文名稱": "CHANG, SAN",
+    "國籍": {
+      "name": "中華民國",
+      "code": "TWN"
+    },
+    "護照號碼": "123456789",
+    "性別": "男",
+    "出生年月日": "1990-01-01",
+    "護照效期": "2030-12-31"
+  }
+}
+```
+
+**回應欄位說明**:
+
+| 欄位名稱 | 類型 | 說明 |
+|---------|------|------|
+| success | boolean | 請求是否成功 |
+| data | object | 辨識結果資料 |
+| data.中文名稱 | string \| null | 護照上的中文姓名（可能為 null） |
+| data.英文名稱 | string | 護照上的英文姓名 （可能為 null）|
+| data.國籍 | object | 國籍資訊 |
+| data.國籍.name | string | 國籍名稱 （可能為 null）|
+| data.國籍.code | string | 國籍代碼（ISO 3166-1 alpha-3） （可能為 null）|
+| data.護照號碼 | string | 護照號碼 （可能為 null）|
+| data.性別 | string | 性別（"M" 或 "F"） （可能為 null）|
+| data.出生年月日 | string | 出生日期（格式：YYYY-MM-DD） （可能為 null）|
+| data.護照效期 | string | 護照到期日（格式：YYYY-MM-DD） （可能為 null）|
+
+**錯誤回應**:
+
+**400 Bad Request** - 請求參數錯誤
+
+```json
+{
+  "success": false,
+  "error": "請求參數錯誤: BASE64 解碼失敗: ..."
+}
+```
+
+可能的原因：
+- 缺少 `image` 欄位
+- `image` 欄位為空或非字串類型
+- BASE64 字串格式錯誤
+- 圖片格式不支援（僅支援 JPG、JPEG、PNG、WEBP）
+
+**500 Internal Server Error** - 伺服器錯誤
+
+```json
+{
+  "success": false,
+  "error": "辨識服務錯誤: ..."
+}
+```
+
+可能的原因：
+- 網路連線問題
+- 圖片無法辨識
+
+#### 2. 健康檢查
+
+檢查 API 服務是否正常運行。
+
+**端點**: `GET /health`
+
+**請求範例**:
+
+```bash
+curl http://localhost:8080/health
+```
+
+**成功回應** (HTTP 200):
+
+```json
+{
+  "status": "healthy"
+}
+```
+
+### 錯誤碼說明
+
+| HTTP 狀態碼 | 說明 |
+|------------|------|
+| 200 | 請求成功 |
+| 400 | 請求參數錯誤（如缺少必要欄位、格式錯誤等） |
+| 500 | 伺服器內部錯誤（如 API 呼叫失敗、解析錯誤等） |
+
+### 使用注意事項
+
+1. **圖片格式要求**：
+   - 支援格式：JPG、JPEG、PNG、WEBP
+   - 建議圖片清晰、完整，避免模糊或部分遮擋
+   - BASE64 編碼時不需要包含 `data:image/jpeg;base64,` 等前綴
+
+2. **BASE64 編碼範例**：
+
+```python
+import base64
+
+# 讀取圖片檔案
+with open("passport.jpg", "rb") as f:
+    image_bytes = f.read()
+
+# 轉換為 BASE64 字串
+base64_string = base64.b64encode(image_bytes).decode("utf-8")
+
+# 使用於 API 請求
+import requests
+
+response = requests.post(
+    "http://localhost:8080/api/passport/recognize",
+    json={"image": base64_string}
+)
+```
+
+3. **API 限制**：
+   - 建議實作請求頻率限制和錯誤重試機制，以避免頻繁呼叫導致的壅塞狀況。建議呼叫頻率為一秒至多1次。
+
+4. **回應時間**：
+   - 正常情況下，單次辨識約需 15~30 秒
+   - 時間取決於圖片大小、網路狀況
 
 ## 系統設計
 
-### 架構設計
-
-本專案遵循 SOLID 設計原則，採用模組化架構：
-
-- **單一職責原則**：每個類別只負責一項功能
-- **開放封閉原則**：可擴展新欄位而不需修改現有程式碼
-- **依賴反轉原則**：高層模組不依賴低層模組的具體實作
 
 ### 核心模組
 
 1. **PassportService**：處理 BASE64 圖片、呼叫 VisionAnalyzer，並整合 ResultParser
-2. **PassportBatchProcessor**：掃描資料夾、轉換檔案為 BASE64、批次呼叫 PassportService
-3. **VisionAnalyzer**：對每個欄位發送提示詞並呼叫 Gemini API 取得結果
-4. **ResultParser**：解析 LLM JSON 回應並產出結構化資料
-5. **PromptTemplates**：集中管理各欄位的提示詞模板
+2. **VisionAnalyzer**：對每個欄位發送提示詞並呼叫 Gemini API 取得結果
+3. **ResultParser**：解析 LLM JSON 回應並產出結構化資料
+4. **PromptTemplates**：集中管理各欄位的提示詞模板
 
 詳細的系統設計請參考：
 - [類別圖](./類別圖.md)
@@ -116,25 +279,3 @@ python main.py --input ./passports --output ./results.csv
 - `ValueError`：BASE64 字串解碼失敗、圖片格式不支援或無法辨識
 - `RuntimeError`：呼叫 Gemini API 過程中發生錯誤
 - `ParseError`：LLM 回應無法解析為合法 JSON
-- `FileNotFoundError` / `IOError`：批次處理或範例程式在讀取本地檔案時發生問題
-
-## 專案階段
-
-### 一、辨識（已完成）
-
-建立一個可以藉由操作 Controller 來進行圖像辨識，整體辨識流程比較人工。讓資料科學家單獨一個一個確認辨識結果。
-
-### 二、自動調整提示詞（規劃中）
-
-利用已經提供好的標籤進行提示詞自動調整，區分好訓練集、測試集，先在訓練集之中調整好提示詞後進入測試集測試，直到測試集的結果也很好為止。
-
-## 注意事項
-
-1. 需要有效的 Google Gemini API 金鑰
-2. 支援的圖片格式：JPG、JPEG、PNG、WEBP
-3. 建議使用清晰、完整的護照圖片以獲得最佳辨識效果
-4. API 呼叫會產生費用，請注意使用量
-
-## 授權
-
-本專案遵循專案規範開發，所有程式碼均包含完整的 docstring 和錯誤處理。

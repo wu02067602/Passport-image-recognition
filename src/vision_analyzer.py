@@ -3,6 +3,7 @@
 此模組提供使用 Google Gemini API 進行圖像理解的功能。
 """
 
+import asyncio
 from google import genai
 from google.genai import types
 from typing import Optional
@@ -130,13 +131,13 @@ class VisionAnalyzer:
         except ConnectionError as e:
             raise RuntimeError(f"Gemini API 連線失敗: {str(e)}") from e
     
-    def analyze_all_fields_from_bytes(
+    async def analyze_all_fields_from_bytes(
         self,
         img_bytes: bytes
     ) -> dict[PassportField, str]:
         """從圖片位元組資料分析護照圖片中的所有欄位
         
-        對護照的每個欄位逐一呼叫 LLM 進行分析。
+        使用非同步方式並發執行所有欄位的 LLM 分析。
         
         Args:
             img_bytes (bytes): 護照圖片的位元組資料
@@ -145,10 +146,11 @@ class VisionAnalyzer:
             dict[PassportField, str]: 每個欄位對應的 LLM 回應結果
         
         Examples:
+            >>> import asyncio
             >>> analyzer = VisionAnalyzer()
             >>> with open("passport.jpg", "rb") as f:
             ...     img_bytes = f.read()
-            >>> results = analyzer.analyze_all_fields_from_bytes(img_bytes)
+            >>> results = asyncio.run(analyzer.analyze_all_fields_from_bytes(img_bytes))
             >>> isinstance(results, dict)
             True
             >>> PassportField.CHINESE_NAME in results
@@ -158,11 +160,22 @@ class VisionAnalyzer:
             ValueError: 當圖片格式不支援或無法辨識時
             RuntimeError: 當任一 API 呼叫失敗時
         """
-        results = {}
         all_fields = PromptTemplates.get_all_fields()
         
-        for field in all_fields:
-            result = self.analyze_field_from_bytes(img_bytes, field)
-            results[field] = result
+        # 使用 asyncio.to_thread() 將同步的 API 呼叫包裝為非同步任務
+        # 使用 asyncio.gather() 並發執行所有欄位的分析
+        tasks = [
+            asyncio.to_thread(self.analyze_field_from_bytes, img_bytes, field)
+            for field in all_fields
+        ]
+        
+        # 並發執行所有任務，並收集結果
+        results_list = await asyncio.gather(*tasks, return_exceptions=False)
+        
+        # 將結果列表轉換為字典
+        results = {
+            field: result
+            for field, result in zip(all_fields, results_list)
+        }
         
         return results

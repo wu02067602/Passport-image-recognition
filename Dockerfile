@@ -1,5 +1,5 @@
 # 使用 Python 官方映像作為基礎映像
-FROM python:3.14-slim
+FROM asia-east1-docker.pkg.dev/cola-cloud/chainguard-images/python:latest-dev
 
 # 設置工作目錄
 WORKDIR /app
@@ -19,7 +19,7 @@ COPY app.py .
 COPY src/ ./src/
 
 # 暴露端口
-EXPOSE 5000
+EXPOSE 8080
 
-# 啟動應用程式
-CMD ["python", "app.py"]
+# 設定啟動命令 - 使用 bash 來執行 Python
+ENTRYPOINT ["/bin/bash", "-c", "python3 app.py"]

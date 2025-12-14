@@ -2,6 +2,7 @@
 
 此模組提供 Flask API 用於護照辨識。
 """
+import os
 
 from flask import Flask, request, jsonify
 from typing import Any
@@ -12,9 +13,8 @@ from src.passport_service import PassportService
 app = Flask(__name__)
 passport_service = PassportService()
 
-
 @app.route('/api/passport/recognize', methods=['POST'])
-def recognize_passport() -> tuple[dict[str, Any], int]:
+async def recognize_passport() -> tuple[dict[str, Any], int]:
     """護照辨識 API 端點
     
     接受 BASE64 編碼的圖片，返回護照辨識結果。
@@ -50,7 +50,7 @@ def recognize_passport() -> tuple[dict[str, Any], int]:
     
     Examples:
         >>> # 使用 curl 測試
-        >>> # curl -X POST http://localhost:5000/api/passport/recognize \
+        >>> # curl -X POST http://localhost:8080/api/passport/recognize \
         >>> #   -H "Content-Type: application/json" \
         >>> #   -d '{"image": "BASE64_STRING"}'
     
@@ -83,7 +83,7 @@ def recognize_passport() -> tuple[dict[str, Any], int]:
             }), 400
         
         # 執行護照辨識
-        passport_data = passport_service.recognize_from_base64(base64_image)
+        passport_data = await passport_service.recognize_from_base64(base64_image)
         
         return jsonify({
             'success': True,
@@ -118,7 +118,7 @@ def health_check() -> tuple[dict[str, str], int]:
     
     Examples:
         >>> # 使用 curl 測試
-        >>> # curl http://localhost:5000/health
+        >>> # curl http://localhost:8080/health
     
     Raises:
         此函數不會拋出錯誤
@@ -127,4 +127,5 @@ def health_check() -> tuple[dict[str, str], int]:
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port, debug=False)
