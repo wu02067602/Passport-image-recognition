@@ -12,7 +12,7 @@ from src.passport_service import PassportService
 
 
 # 批次處理每批次最大數量
-BATCH_SIZE = 20
+BATCH_SIZE = 100
 
 
 app = Flask(__name__)
@@ -117,7 +117,7 @@ async def recognize_passport_batch() -> tuple[dict[str, Any], int]:
     """批次護照辨識 API 端點
     
     接受多張 BASE64 編碼的圖片，以非同步方式進行批次辨識。
-    每批次處理 20 張圖片，超過則依序分批處理。
+    每批次處理 100 張圖片，超過則依序分批處理。
     
     Request Body:
         {
