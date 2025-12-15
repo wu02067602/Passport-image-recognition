@@ -69,23 +69,36 @@ print(f"護照號碼: {result.get('護照號碼')}")
 
 ### 2. 呼叫 Flask API
 
-#### 本地端啟用
+#### 單張辨識
 
 ```bash
+# 本地端
 curl -X POST http://localhost:8080/api/passport/recognize \
   -H "Content-Type: application/json" \
   -d '{"image": "BASE64_STRING"}'
-```
 
-#### 雲端佈署呼叫方式
-
-```bash
+# 雲端佈署
 curl -X POST https://sit-passport-recog-data-api.colatour.org/api/passport/recognize \
   -H "Content-Type: application/json" \
   -d '{"image": "BASE64_STRING"}'
 ```
 
+#### 批次辨識
+
+```bash
+# 本地端
+curl -X POST http://localhost:8080/api/passport/recognize/batch \
+  -H "Content-Type: application/json" \
+  -d '{"images": ["BASE64_STRING_1", "BASE64_STRING_2", "BASE64_STRING_3"]}'
+
+# 雲端佈署
+curl -X POST https://sit-passport-recog-data-api.colatour.org/api/passport/recognize/batch \
+  -H "Content-Type: application/json" \
+  -d '{"images": ["BASE64_STRING_1", "BASE64_STRING_2", "BASE64_STRING_3"]}'
+```
+
 > 請將 `BASE64_STRING` 替換為實際的 BASE64 編碼圖片字串。
+> 批次辨識每次最多可同時處理 100 張圖片，超過則會分批次處理。
 
 
 
@@ -194,7 +207,115 @@ curl -X POST http://localhost:8080/api/passport/recognize \
 - 網路連線問題
 - 圖片無法辨識
 
-#### 2. 健康檢查
+#### 2. 批次護照辨識
+
+一次辨識多張護照圖片中的資訊，支援大量批次處理。每批次最多同時處理 100 張圖片，超過則依序分批處理。
+
+**端點**: `POST /api/passport/recognize/batch`
+
+**請求標頭**:
+```
+Content-Type: application/json
+```
+
+**請求參數**:
+
+| 參數名稱 | 類型 | 必填 | 說明 |
+|---------|------|------|------|
+| images | array | 是 | BASE64 編碼的圖片字串陣列 |
+
+**請求範例**:
+
+```bash
+curl -X POST http://localhost:8080/api/passport/recognize/batch \
+  -H "Content-Type: application/json" \
+  -d '{
+    "images": [
+      "iVBORw0KGgoAAAANSUhEUgAA...",
+      "iVBORw0KGgoAAAANSUhEUgBB...",
+      "iVBORw0KGgoAAAANSUhEUgCC..."
+    ]
+  }'
+```
+
+**成功回應** (HTTP 200):
+
+```json
+{
+  "success": true,
+  "data": {
+    "results": [
+      {
+        "index": 0,
+        "success": true,
+        "data": {
+          "中文名稱": "張三",
+          "英文名稱": "CHANG, SAN",
+          "國籍": {"name": "REPUBLIC OF CHINA", "code": "TWN"},
+          "護照號碼": "123456789",
+          "性別": "M",
+          "出生年月日": "1990-01-01",
+          "護照效期": "2030-12-31"
+        }
+      },
+      {
+        "index": 1,
+        "success": true,
+        "data": {
+          "中文名稱": "李四",
+          "英文名稱": "LI, SI",
+          "國籍": {"name": "REPUBLIC OF CHINA", "code": "TWN"},
+          "護照號碼": "987654321",
+          "性別": "F",
+          "出生年月日": "1985-06-15",
+          "護照效期": "2028-06-14"
+        }
+      },
+      {
+        "index": 2,
+        "success": false,
+        "error": "請求參數錯誤: BASE64 解碼失敗: ..."
+      }
+    ],
+    "total": 3,
+    "successful": 2,
+    "failed": 1
+  }
+}
+```
+
+**回應欄位說明**:
+
+| 欄位名稱 | 類型 | 說明 |
+|---------|------|------|
+| success | boolean | 整體請求是否成功 |
+| data.results | array | 每張圖片的辨識結果陣列 |
+| data.results[].index | number | 圖片在原始陣列中的索引 |
+| data.results[].success | boolean | 該圖片辨識是否成功 |
+| data.results[].data | object | 辨識成功時的護照資料（同單張辨識格式） |
+| data.results[].error | string | 辨識失敗時的錯誤訊息 |
+| data.total | number | 總處理圖片數量 |
+| data.successful | number | 成功辨識的圖片數量 |
+| data.failed | number | 辨識失敗的圖片數量 |
+
+**錯誤回應**:
+
+**400 Bad Request** - 請求參數錯誤
+
+```json
+{
+  "success": false,
+  "error": "images 欄位必須為陣列"
+}
+```
+
+可能的原因：
+- 缺少 `images` 欄位
+- `images` 欄位不是陣列
+- `images` 陣列為空
+- 陣列中包含非字串或空字串元素
+
+#### 3. 健康檢查
 
 檢查 API 服務是否正常運行。
 
@@ -251,10 +372,13 @@ response = requests.post(
 ```
 
 3. **API 限制**：
-   - 建議實作請求頻率限制和錯誤重試機制，以避免頻繁呼叫導致的壅塞狀況。建議呼叫頻率為一秒至多1次。
+   - 建議實作請求頻率限制和錯誤重試機制，以避免頻繁呼叫導致的壅塞狀況
+   - 單張辨識建議呼叫頻率為一秒至多 1 次
+   - 批次辨識每次最多同時處理 100 張圖片，超過會自動分批處理
 
 4. **回應時間**：
-   - 正常情況下，單次辨識約需 15~30 秒
+   - 單張辨識：約 15~30 秒
+   - 批次辨識：取決於圖片數量，每批次 100 張約需 15~30 秒（因並發處理）
    - 時間取決於圖片大小、網路狀況
 
 ## 系統設計
