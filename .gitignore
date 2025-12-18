@@ -42,3 +42,9 @@ htmlcov/
 # Environment
 .env
 .env.local
+
+.jpg
+
+.json
+
+.txt
