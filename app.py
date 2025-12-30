@@ -18,11 +18,11 @@ BATCH_SIZE = 100
 
 # 同時處理的圖片數量上限（控制併發，避免 API 節流）
 # 建議範圍：4~6，可依實測調整
-IMAGE_CONCURRENCY = int(os.environ.get('IMAGE_CONCURRENCY', '5'))
+IMAGE_CONCURRENCY = int(os.environ.get('IMAGE_CONCURRENCY', '20'))
 
 # 設定 logger
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 
 app = Flask(__name__)

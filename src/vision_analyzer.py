@@ -19,7 +19,7 @@ from .prompt_templates import PassportField, PromptTemplates
 
 # Gemini API 同時呼叫數上限（控制 thread pool 大小）
 # 建議範圍：32~48，可依實測調整
-GEMINI_MAX_WORKERS = int(os.environ.get('GEMINI_MAX_WORKERS', '40'))
+GEMINI_MAX_WORKERS = int(os.environ.get('GEMINI_MAX_WORKERS', '50'))
 
 # 設定 logger
 logger = logging.getLogger(__name__)
