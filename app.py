@@ -319,11 +319,12 @@ async def _process_batch_recognition(images: list[dict[str, str]]) -> list[dict[
     
     batch_elapsed = time.perf_counter() - batch_start_time
     successful_count = sum(1 for r in all_results if r['success'])
-    avg_time_per_image = batch_elapsed / len(all_results) if all_results else 'N/A'
+    avg_time_per_image = batch_elapsed / len(all_results) if all_results else None
+    avg_time_str = f"{avg_time_per_image:.2f}s" if avg_time_per_image is not None else "N/A"
     logger.info(
         f"批次辨識完成: 總耗時={batch_elapsed:.2f}s, "
         f"成功={successful_count}/{len(all_results)}, "
-        f"平均每張={avg_time_per_image:.2f}s"
+        f"平均每張={avg_time_str}"
     )
     
     return all_results
