@@ -87,7 +87,8 @@ def test_passport_api(
     
     # 準備請求資料
     payload = {
-        "image": base64_image
+        "image": base64_image,
+        "id": "test_single_001"
     }
     
     print(f"\n正在發送請求到: {api_url}")
@@ -119,6 +120,7 @@ def test_passport_api(
         # 檢查回應是否成功
         if response.status_code == 200 and result.get('success'):
             print("\n✓ API 測試成功！")
+            print(f"ID: {result.get('id')}")
             if 'data' in result:
                 print("\n=== 辨識結果 ===")
                 data = result['data']
@@ -163,13 +165,21 @@ def test_passport_batch_api(
     api_url = f"{base_url}{BATCH_ENDPOINT}"
     print(f"正在準備批次辨識測試，共 {len(image_paths)} 張圖片")
     
-    base64_images = []
+    images_payload = []
     for idx, image_path in enumerate(image_paths):
         try:
             print(f"  [{idx + 1}/{len(image_paths)}] 正在讀取: {image_path}")
             base64_image = image_to_base64(image_path)
-            base64_images.append(base64_image)
-            print(f"    ✓ 已轉換 (長度: {len(base64_image)} 字元)")
+            
+            # 使用檔名作為 ID，或自動生成
+            path_obj = Path(image_path)
+            image_id = f"{path_obj.name}_{idx}"
+            
+            images_payload.append({
+                "id": image_id,
+                "image": base64_image
+            })
+            print(f"    ✓ 已轉換 (ID: {image_id}, 長度: {len(base64_image)} 字元)")
         except FileNotFoundError as e:
             print(f"    ✗ 錯誤: {e}")
             raise
@@ -179,7 +189,7 @@ def test_passport_batch_api(
     
     # 準備請求資料
     payload = {
-        "images": base64_images
+        "images": images_payload
     }
     
     print(f"\n正在發送批次請求到: {api_url}")
@@ -215,10 +225,10 @@ def test_passport_batch_api(
             
             print("\n=== 詳細結果 ===")
             for item in data.get('results', []):
-                idx = item.get('index', '?')
+                item_id = item.get('id', '?')
                 success = item.get('success', False)
                 status = "✓" if success else "✗"
-                print(f"\n[{idx}] {status} {image_paths[idx] if idx < len(image_paths) else 'Unknown'}")
+                print(f"\n[ID: {item_id}] {status}")
                 
                 if success:
                     passport_data = item.get('data', {})
