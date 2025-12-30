@@ -90,6 +90,7 @@ async def recognize_passport() -> tuple[dict[str, Any], int]:
             }), 400
         
         base64_image = data['image']
+        request_id = data.get('id')  # 取得 ID，若無則為 None
         
         if not isinstance(base64_image, str) or not base64_image:
             return jsonify({
@@ -102,6 +103,7 @@ async def recognize_passport() -> tuple[dict[str, Any], int]:
         
         return jsonify({
             'success': True,
+            'id': request_id,
             'data': passport_data
         }), 200
         
@@ -126,12 +128,15 @@ async def recognize_passport() -> tuple[dict[str, Any], int]:
 async def recognize_passport_batch() -> tuple[dict[str, Any], int]:
     """批次護照辨識 API 端點
     
-    接受多張 BASE64 編碼的圖片，以非同步方式進行批次辨識。
+    接受多張圖片資訊（ID 與 BASE64 字串），以非同步方式進行批次辨識。
     每批次處理 100 張圖片，超過則依序分批處理。
     
     Request Body:
         {
-            "images": ["BASE64 編碼的圖片字串", "BASE64 編碼的圖片字串", ...]
+            "images": [
+                {"id": "FILE_001", "image": "BASE64 編碼的圖片字串"},
+                {"id": "FILE_002", "image": "BASE64 編碼的圖片字串"}
+            ]
         }
     
     Response:
@@ -141,7 +146,7 @@ async def recognize_passport_batch() -> tuple[dict[str, Any], int]:
             "data": {
                 "results": [
                     {
-                        "index": 0,
+                        "id": "FILE_001",
                         "success": true,
                         "data": {
                             "中文名稱": "...",
@@ -170,7 +175,7 @@ async def recognize_passport_batch() -> tuple[dict[str, Any], int]:
         >>> # 使用 curl 測試
         >>> # curl -X POST http://localhost:8080/api/passport/recognize/batch \
         >>> #   -H "Content-Type: application/json" \
-        >>> #   -d '{"images": ["BASE64_STRING_1", "BASE64_STRING_2"]}'
+        >>> #   -d '{"images": [{"id": "FILE_001", "image": "BASE64_STRING_1"}, {"id": "FILE_002", "image": "BASE64_STRING_2"}]}'
     
     Raises:
         此函數不會拋出錯誤，所有錯誤都會被捕捉並返回對應的 HTTP 狀態碼
@@ -206,12 +211,30 @@ async def recognize_passport_batch() -> tuple[dict[str, Any], int]:
                 'error': 'images 陣列不可為空'
             }), 400
         
-        # 驗證每個圖片是否為有效的字串
-        for idx, img in enumerate(images):
-            if not isinstance(img, str) or not img:
+        # 驗證每個圖片物件的格式
+        for idx, item in enumerate(images):
+            if not isinstance(item, dict):
                 return jsonify({
                     'success': False,
-                    'error': f'images[{idx}] 必須為非空字串'
+                    'error': f'images[{idx}] 必須為物件'
+                }), 400
+            
+            if 'id' not in item:
+                return jsonify({
+                    'success': False,
+                    'error': f'images[{idx}] 缺少 id 欄位'
+                }), 400
+            
+            if 'image' not in item:
+                return jsonify({
+                    'success': False,
+                    'error': f'images[{idx}] 缺少 image 欄位'
+                }), 400
+                
+            if not isinstance(item['image'], str) or not item['image']:
+                return jsonify({
+                    'success': False,
+                    'error': f'images[{idx}].image 必須為非空字串'
                 }), 400
         
         # 執行批次護照辨識
@@ -243,21 +266,25 @@ async def recognize_passport_batch() -> tuple[dict[str, Any], int]:
         }), 500
 
 
-async def _process_batch_recognition(images: list[str]) -> list[dict[str, Any]]:
+async def _process_batch_recognition(images: list[dict[str, str]]) -> list[dict[str, Any]]:
     """處理批次護照辨識
     
     將圖片分批處理，每批次最多處理 BATCH_SIZE 張圖片。
     使用 Semaphore 控制同時處理的圖片數量，避免 API 節流。
     
     Args:
-        images (list[str]): BASE64 編碼的圖片字串列表
+        images (list[dict[str, str]]): 包含 id 與 image 的字典列表
     
     Returns:
         list[dict[str, Any]]: 每張圖片的辨識結果列表
     
     Examples:
-        >>> results = await _process_batch_recognition(["base64_1", "base64_2"])
-        >>> isinstance(results, list)
+        >>> images = [
+        ...     {'id': 'img1', 'image': 'base64_string_1'},
+        ...     {'id': 'img2', 'image': 'base64_string_2'}
+        ... ]
+        >>> results = await _process_batch_recognition(images)
+        >>> len(results) == 2
         True
     
     Raises:
@@ -274,13 +301,12 @@ async def _process_batch_recognition(images: list[str]) -> list[dict[str, Any]]:
     # 分批處理
     for batch_start in range(0, len(images), BATCH_SIZE):
         batch_end = min(batch_start + BATCH_SIZE, len(images))
-        batch_images = images[batch_start:batch_end]
-        batch_indices = list(range(batch_start, batch_end))
+        batch_items = images[batch_start:batch_end]
         
         # 建立當前批次的非同步任務（帶有 Semaphore 控制）
         tasks = [
-            _recognize_single_image_with_semaphore(semaphore, idx, img)
-            for idx, img in zip(batch_indices, batch_images)
+            _recognize_single_image_with_semaphore(semaphore, item['id'], item['image'])
+            for item in batch_items
         ]
         
         # 並發執行當前批次
@@ -301,45 +327,45 @@ async def _process_batch_recognition(images: list[str]) -> list[dict[str, Any]]:
 
 async def _recognize_single_image_with_semaphore(
     semaphore: asyncio.Semaphore,
-    index: int,
+    image_id: str,
     base64_image: str
 ) -> dict[str, Any]:
     """使用 Semaphore 控制併發的單張護照圖片辨識
     
     Args:
         semaphore (asyncio.Semaphore): 用於控制併發數量的 Semaphore
-        index (int): 圖片在原始列表中的索引
+        image_id (str): 圖片的識別碼
         base64_image (str): BASE64 編碼的圖片字串
     
     Returns:
-        dict[str, Any]: 辨識結果字典，包含 index、success、data 或 error
+        dict[str, Any]: 辨識結果字典，包含 id、success、data 或 error
     
     Examples:
         >>> semaphore = asyncio.Semaphore(5)
-        >>> result = await _recognize_single_image_with_semaphore(semaphore, 0, "base64_string")
-        >>> 'index' in result and 'success' in result
+        >>> result = await _recognize_single_image_with_semaphore(semaphore, "img1", "base64_string")
+        >>> 'id' in result and 'success' in result
         True
     
     Raises:
         此函數不會拋出錯誤，錯誤會記錄在返回的字典中
     """
     async with semaphore:
-        return await _recognize_single_image(index, base64_image)
+        return await _recognize_single_image(image_id, base64_image)
 
 
-async def _recognize_single_image(index: int, base64_image: str) -> dict[str, Any]:
+async def _recognize_single_image(image_id: str, base64_image: str) -> dict[str, Any]:
     """辨識單張護照圖片
     
     Args:
-        index (int): 圖片在原始列表中的索引
+        image_id (str): 圖片的識別碼
         base64_image (str): BASE64 編碼的圖片字串
     
     Returns:
-        dict[str, Any]: 辨識結果字典，包含 index、success、data 或 error
+        dict[str, Any]: 辨識結果字典，包含 id、success、data 或 error
     
     Examples:
-        >>> result = await _recognize_single_image(0, "base64_string")
-        >>> 'index' in result and 'success' in result
+        >>> result = await _recognize_single_image("img1", "base64_string")
+        >>> 'id' in result and 'success' in result
         True
     
     Raises:
@@ -349,25 +375,25 @@ async def _recognize_single_image(index: int, base64_image: str) -> dict[str, An
     try:
         passport_data = await passport_service.recognize_from_base64(base64_image)
         elapsed = time.perf_counter() - start_time
-        logger.debug(f"圖片 {index} 辨識成功: 耗時={elapsed:.2f}s")
+        logger.debug(f"圖片 {image_id} 辨識成功: 耗時={elapsed:.2f}s")
         return {
-            'index': index,
+            'id': image_id,
             'success': True,
             'data': passport_data
         }
     except ValueError as e:
         elapsed = time.perf_counter() - start_time
-        logger.warning(f"圖片 {index} 參數錯誤: 耗時={elapsed:.2f}s, 錯誤={str(e)}")
+        logger.warning(f"圖片 {image_id} 參數錯誤: 耗時={elapsed:.2f}s, 錯誤={str(e)}")
         return {
-            'index': index,
+            'id': image_id,
             'success': False,
             'error': f'請求參數錯誤: {str(e)}'
         }
     except RuntimeError as e:
         elapsed = time.perf_counter() - start_time
-        logger.warning(f"圖片 {index} 辨識錯誤: 耗時={elapsed:.2f}s, 錯誤={str(e)}")
+        logger.warning(f"圖片 {image_id} 辨識錯誤: 耗時={elapsed:.2f}s, 錯誤={str(e)}")
         return {
-            'index': index,
+            'id': image_id,
             'success': False,
             'error': f'辨識服務錯誤: {str(e)}'
         }
