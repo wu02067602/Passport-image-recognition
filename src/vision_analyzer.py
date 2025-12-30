@@ -6,6 +6,7 @@
 import asyncio
 import logging
 import os
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from google import genai
@@ -39,12 +40,15 @@ class VisionAnalyzer:
     
     # 類別層級的專用 ThreadPoolExecutor，用於控制 Gemini API 同時呼叫數
     _executor: ThreadPoolExecutor | None = None
+    # 用於保護 executor 初始化的鎖
+    _executor_lock = threading.Lock()
     
     @classmethod
     def get_executor(cls) -> ThreadPoolExecutor:
         """取得專用的 ThreadPoolExecutor
         
-        使用延遲初始化，確保只建立一個 executor 實例。
+        使用執行緒安全的延遲初始化，確保只建立一個 executor 實例。
+        採用雙重檢查鎖定模式（Double-Checked Locking）以兼顧效能與執行緒安全。
         
         Returns:
             ThreadPoolExecutor: 專用的 thread pool executor
@@ -57,9 +61,14 @@ class VisionAnalyzer:
         Raises:
             此函數不會拋出錯誤
         """
+        # 雙重檢查鎖定模式（Double-Checked Locking）
+        # 第一次檢查：避免不必要的鎖定開銷（當 executor 已存在時）
         if cls._executor is None:
-            cls._executor = ThreadPoolExecutor(max_workers=GEMINI_MAX_WORKERS)
-            logger.info(f"建立 Gemini ThreadPoolExecutor: max_workers={GEMINI_MAX_WORKERS}")
+            with cls._executor_lock:
+                # 第二次檢查：確保只有一個執行緒能建立 executor
+                if cls._executor is None:
+                    cls._executor = ThreadPoolExecutor(max_workers=GEMINI_MAX_WORKERS)
+                    logger.info(f"建立 Gemini ThreadPoolExecutor: max_workers={GEMINI_MAX_WORKERS}")
         return cls._executor
     
     def __init__(self, model_name: str = "gemini-2.5-flash"):
