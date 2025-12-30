@@ -161,7 +161,6 @@ async def recognize_passport_batch() -> tuple[dict[str, Any], int]:
                 "failed": 2
             }
         }
-        
         失敗 (400/500):
         {
             "success": false,
@@ -264,6 +263,11 @@ async def recognize_passport_batch() -> tuple[dict[str, Any], int]:
             'success': False,
             'error': f'辨識服務錯誤: {str(e)}'
         }), 500
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'未預期的錯誤: {str(e)}'
+        }), 500
 
 
 async def _process_batch_recognition(images: list[dict[str, str]]) -> list[dict[str, Any]]:
@@ -288,7 +292,7 @@ async def _process_batch_recognition(images: list[dict[str, str]]) -> list[dict[
         True
     
     Raises:
-        此函數不會拋出錯誤，個別圖片的錯誤會記錄在結果中
+        此函數不會拋出錯誤，所有錯誤都會在結果中標記
     """
     all_results: list[dict[str, Any]] = []
     
@@ -369,7 +373,7 @@ async def _recognize_single_image(image_id: str, base64_image: str) -> dict[str,
         True
     
     Raises:
-        此函數不會拋出錯誤，錯誤會記錄在返回的字典中
+        此函數不會拋出錯誤，所有錯誤都會在結果中標記
     """
     start_time = time.perf_counter()
     try:

@@ -110,7 +110,7 @@ curl -X POST https://sit-passport-recog-data-api.colatour.org/api/passport/recog
 - **Base URL (本地端)**: `http://localhost:8080`
 - **Base URL (雲端佈署)**: `https://sit-passport-recog-data-api.colatour.org`
 - **Content-Type**: `application/json`
-- **API 版本**: v1
+- **API 版本**: v2
 
 ### 端點列表
 
@@ -130,13 +130,23 @@ Content-Type: application/json
 | 參數名稱 | 類型 | 必填 | 說明 |
 |---------|------|------|------|
 | image | string | 是 | BASE64 編碼的圖片字串（不含 data URI 前綴） |
+| id | string | 否 | 自定義識別碼，回應時會原樣返回。若未提供則為 null |
 
 **請求範例**:
 
 ```bash
+# 基本用法
 curl -X POST http://localhost:8080/api/passport/recognize \
   -H "Content-Type: application/json" \
   -d '{
+    "image": "iVBORw0KGgoAAAANSUhEUgAA..."
+  }'
+
+# 帶有自定義 ID
+curl -X POST http://localhost:8080/api/passport/recognize \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "USER_12345",
     "image": "iVBORw0KGgoAAAANSUhEUgAA..."
   }'
 ```
@@ -146,6 +156,7 @@ curl -X POST http://localhost:8080/api/passport/recognize \
 ```json
 {
   "success": true,
+  "id": "USER_12345",
   "data": {
     "中文名稱": "張三",
     "英文名稱": "CHANG, SAN",
@@ -166,6 +177,7 @@ curl -X POST http://localhost:8080/api/passport/recognize \
 | 欄位名稱 | 類型 | 說明 |
 |---------|------|------|
 | success | boolean | 請求是否成功 |
+| id | string \| null | 請求時傳入的識別碼 |
 | data | object | 辨識結果資料 |
 | data.中文名稱 | string \| null | 護照上的中文姓名（可能為 null） |
 | data.英文名稱 | string | 護照上的英文姓名 （可能為 null）|
@@ -222,7 +234,9 @@ Content-Type: application/json
 
 | 參數名稱 | 類型 | 必填 | 說明 |
 |---------|------|------|------|
-| images | array | 是 | BASE64 編碼的圖片字串陣列 |
+| images | array | 是 | 包含圖片資訊的物件陣列 |
+| images[].id | string | 是 | 每張圖片的唯一識別碼 |
+| images[].image | string | 是 | BASE64 編碼的圖片字串 |
 
 **請求範例**:
 
@@ -231,9 +245,14 @@ curl -X POST http://localhost:8080/api/passport/recognize/batch \
   -H "Content-Type: application/json" \
   -d '{
     "images": [
-      "iVBORw0KGgoAAAANSUhEUgAA...",
-      "iVBORw0KGgoAAAANSUhEUgBB...",
-      "iVBORw0KGgoAAAANSUhEUgCC..."
+      {
+        "id": "FILE_A001",
+        "image": "iVBORw0KGgoAAAANSUhEUgAA..."
+      },
+      {
+        "id": "FILE_B002",
+        "image": "iVBORw0KGgoAAAANSUhEUgBB..."
+      }
     ]
   }'
 ```
@@ -246,7 +265,7 @@ curl -X POST http://localhost:8080/api/passport/recognize/batch \
   "data": {
     "results": [
       {
-        "index": 0,
+        "id": "FILE_A001",
         "success": true,
         "data": {
           "中文名稱": "張三",
@@ -259,7 +278,7 @@ curl -X POST http://localhost:8080/api/passport/recognize/batch \
         }
       },
       {
-        "index": 1,
+        "id": "FILE_B002",
         "success": true,
         "data": {
           "中文名稱": "李四",
@@ -270,16 +289,11 @@ curl -X POST http://localhost:8080/api/passport/recognize/batch \
           "出生年月日": "1985-06-15",
           "護照效期": "2028-06-14"
         }
-      },
-      {
-        "index": 2,
-        "success": false,
-        "error": "請求參數錯誤: BASE64 解碼失敗: ..."
       }
     ],
-    "total": 3,
+    "total": 2,
     "successful": 2,
-    "failed": 1
+    "failed": 0
   }
 }
 ```
@@ -290,7 +304,7 @@ curl -X POST http://localhost:8080/api/passport/recognize/batch \
 |---------|------|------|
 | success | boolean | 整體請求是否成功 |
 | data.results | array | 每張圖片的辨識結果陣列 |
-| data.results[].index | number | 圖片在原始陣列中的索引 |
+| data.results[].id | string | 對應請求中的圖片識別碼 |
 | data.results[].success | boolean | 該圖片辨識是否成功 |
 | data.results[].data | object | 辨識成功時的護照資料（同單張辨識格式） |
 | data.results[].error | string | 辨識失敗時的錯誤訊息 |
@@ -305,15 +319,14 @@ curl -X POST http://localhost:8080/api/passport/recognize/batch \
 ```json
 {
   "success": false,
-  "error": "images 欄位必須為陣列"
+  "error": "images 必須包含 id 與 image 欄位"
 }
 ```
 
 可能的原因：
 - 缺少 `images` 欄位
 - `images` 欄位不是陣列
-- `images` 陣列為空
-- 陣列中包含非字串或空字串元素
+- 陣列中的物件缺少 `id` 或 `image`
 
 #### 3. 健康檢查
 
@@ -374,7 +387,7 @@ response = requests.post(
 3. **API 限制**：
    - 建議實作請求頻率限制和錯誤重試機制，以避免頻繁呼叫導致的壅塞狀況
    - 單張辨識建議呼叫頻率為一秒至多 1 次
-   - 批次辨識每次最多同時處理 100 張圖片，超過會自動分批處理
+   - 批次辨識每次最多同時處理 100 張圖片，超過會自動分批處理延長時間
 
 4. **回應時間**：
    - 單張辨識：約 10~15 秒
